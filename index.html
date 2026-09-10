@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#17202a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Djerba Alustore — Calculateur</title>
+<style>
+*{box-sizing:border-box} body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#17202a}
+header{background:#17202a;color:white;padding:18px 20px} header h1{margin:0;font-size:22px} header p{margin:5px 0 0;opacity:.8}
+main{max-width:1150px;margin:auto;padding:18px}
+.card{background:white;border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 2px 12px #00000012}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+label{font-size:13px;font-weight:bold;display:block;margin-bottom:6px}
+input,select{width:100%;padding:11px;border:1px solid #ccd3da;border-radius:9px;font-size:15px}
+button{border:0;border-radius:9px;padding:11px 16px;font-weight:bold;cursor:pointer}
+.primary{background:#1f6feb;color:white} .secondary{background:#e9eef3;color:#17202a}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.metric{background:#f7f9fb;border-radius:10px;padding:14px} .metric b{display:block;font-size:21px;margin-top:5px}
+.tablewrap{overflow:auto} table{width:100%;border-collapse:collapse;min-width:720px} th,td{padding:9px;border-bottom:1px solid #e6e9ed;text-align:left;font-size:13px} th{background:#f1f4f7}
+.total{font-size:24px;font-weight:bold}
+.small{font-size:12px;color:#68737d}
+@media print{header,.no-print{display:none!important}body{background:white}.card{box-shadow:none;border:1px solid #ddd}}
+</style>
+</head>
+<body>
+<header><h1>DJERBA ALUSTORE</h1><p>Calculateur de prix — basé sur les fiches Excel</p></header>
+<main>
+<div class="card">
+<h2>1. Choix du modèle</h2>
+<div class="grid">
+<div><label>Modèle</label><select id="model"></select></div>
+<div><label>Largeur (m)</label><input id="L" type="number" step="0.01" value="2.44"></div>
+<div><label>Hauteur (m)</label><input id="H" type="number" step="0.01" value="2.35"></div>
+<div><label>Quantité</label><input id="Q" type="number" step="1" min="1" value="1"></div>
+</div>
+<br><button class="primary no-print" onclick="calculate()">Calculer</button>
+<button class="secondary no-print" onclick="window.print()">Imprimer</button>
+</div>
+
+
+<div class="card">
+<h2>إدارة الأسعار</h2>
+<p class="small">بدّل السعر ثم اضغط «حفظ الأسعار». الأسعار تُحفظ في هذا المتصفح وتُستعمل مباشرة في الحساب.</p>
+<div class="tablewrap">
+<table id="priceTable"><thead><tr><th>المادة / Profilé</th><th>السعر الحالي (DT)</th><th>الوحدة</th></tr></thead><tbody></tbody></table>
+</div>
+<br>
+<button class="primary no-print" onclick="savePrices()">حفظ الأسعار</button>
+<button class="secondary no-print" onclick="resetPrices()">إرجاع أسعار Excel</button>
+<span id="saveMsg" class="small"></span>
+</div>
+
+<div class="card">
+<h2>2. Résultat</h2>
+<div class="summary">
+<div class="metric">Coût profilés/accessoires<b id="materials">0.000 DT</b></div>
+<div class="metric">Marge / ajustement<b><input id="margin" type="number" value="0" step="0.1" style="width:90px;display:inline"> %</b></div>
+<div class="metric">Prix de vente<b class="total" id="sale">0.000 DT</b></div>
+</div>
+</div>
+
+<div class="card">
+<h2>3. Détail de fabrication</h2>
+<div class="tablewrap">
+<table><thead><tr><th>Désignation</th><th>Qté</th><th>Consommation (m)</th><th>Prix unit.</th><th>Total</th></tr></thead>
+<tbody id="rows"></tbody></table>
+</div>
+<p class="small">La consommation suit les formules présentes dans le fichier Excel : certaines pièces utilisent la largeur, d’autres la hauteur, avec leur quantité propre.</p>
+</div>
+</main>
+
+<script>
+const DATA={"PF 2V AVEC SEPAr ": {"article": "P F2V AVEC SEPARATION", "L": 1, "H": 4, "items": [{"desc": "Profilé 40100 longueur", "qty": 1.0, "unit": 15.0, "formula": "=SUM(D9*E5)"}, {"desc": "Profilé 40100 Hauteur", "qty": 2.0, "unit": 15.0, "formula": "=SUM(D10*E6)"}, {"desc": "Profilé 40150 Longueur", "qty": 1.0, "unit": 18.0, "formula": "=SUM(D11*E5)"}, {"desc": "Profilé 40150 Hauteur", "qty": 4.0, "unit": 18.0, "formula": "=SUM(D12*E6)"}, {"desc": "Profilé 40112 hauteur", "qty": 1.0, "unit": 12.0, "formula": "=E6*D13"}, {"desc": "profile 40154largeur", "qty": 1.0, "unit": 25.0, "formula": "=+D14*E5"}, {"desc": "profile 40121largeur", "qty": 1.0, "unit": 25.0, "formula": "=D15*E5"}, {"desc": "Profilé 40166 Longueur parclose", "qty": 4.0, "unit": 3.5, "formula": "=SUM(D16*E5)"}, {"desc": "Profilé 40166 Hauteur parclose", "qty": 4.0, "unit": 3.5, "formula": "=SUM(D17*E6)"}, {"desc": "Joint vitre 242 longueur", "qty": 8.0, "unit": 0.5, "formula": "=SUM(D18*E5)"}, {"desc": "Joint vitre 242 Hauteur", "qty": 8.0, "unit": 0.5, "formula": "=SUM(D19*E6)"}, {"desc": "Joint batemon 247 longueur", "qty": 8.0, "unit": 0.5, "formula": "=SUM(D20*E5)"}, {"desc": "Joint batmon 247Hauteur", "qty": 8.0, "unit": 0.5, "formula": "=SUM(D21*E6)"}, {"desc": "Poingné à piquet", "qty": 1.0, "unit": 15.0, "formula": "1"}, {"desc": "Verrou semi fixe", "qty": 1.0, "unit": 3.0, "formula": "1"}, {"desc": "Serrure", "qty": 1.0, "unit": 40.0, "formula": "1"}, {"desc": "Paumelle", "qty": 8.0, "unit": 2.0, "formula": "8"}, {"desc": "Bouchon 40112", "qty": 1.0, "unit": 0.7, "formula": "1"}, {"desc": "Coin parclose", "qty": 16.0, "unit": 0.15, "formula": "16"}, {"desc": "Equerre", "qty": 6.0, "unit": 0.5, "formula": "6"}, {"desc": "Vitre", "qty": 1.0, "unit": 20.0, "formula": "=SUM(E5*E6)"}]}, "PF 2V SANS SEPAr ": {"article": "P F 2V sans separation", "L": 1, "H": 4, "items": [{"desc": "Profilé 40100 longueur", "qty": 1.0, "unit": 20.0, "formula": "1"}, {"desc": "Profilé 40100 Hauteur", "qty": 2.0, "unit": 20.0, "formula": "2"}, {"desc": "Profilé 40150 Longueur", "qty": 1.0, "unit": 20.0, "formula": "1"}, {"desc": "Profilé 40150 Hauteur", "qty": 4.0, "unit": 18.0, "formula": "4"}, {"desc": "Profilé 40112 hauteur", "qty": 1.0, "unit": 12.0, "formula": "1"}, {"desc": "profilé 40154 longueur", "qty": 1.0, "unit": 25.0, "formula": "1"}, {"desc": "Profilé 40166 Longueur parclose", "qty": 2.0, "unit": 4.0, "formula": "2"}, {"desc": "Profilé 40166 Hauteur parclose", "qty": 4.0, "unit": 4.0, "formula": "4"}, {"desc": "Joint vitre 242 longueur", "qty": 4.0, "unit": 0.4, "formula": "4"}, {"desc": "Joint vitre 242 Hauteur", "qty": 8.0, "unit": 0.4, "formula": "8"}, {"desc": "Joint batemon 247 longueur", "qty": 2.0, "unit": 0.4, "formula": "2"}, {"desc": "Joint batmon 247Hauteur", "qty": 6.0, "unit": 0.4, "formula": "6"}, {"desc": "Poingné à piquet", "qty": 1.0, "unit": 20.0, "formula": "1"}, {"desc": "Verrou semi fixe", "qty": 1.0, "unit": 5.0, "formula": "1"}, {"desc": "Serrure", "qty": 1.0, "unit": 45.0, "formula": "1"}, {"desc": "Paumelle", "qty": 8.0, "unit": 3.5, "formula": "8"}, {"desc": "Bouchon", "qty": 1.0, "unit": 0.6, "formula": "1"}, {"desc": "Coin parclose", "qty": 8.0, "unit": 0.15, "formula": "8"}, {"desc": "Equerre", "qty": 6.0, "unit": 1.5, "formula": "6"}, {"desc": "Vitre", "qty": 1.0, "unit": 40.0, "formula": "1"}]}, "PF 1V Ch-F ": {"article": "Porte fenètre a 1 vantau et chssé fixe ", "L": 1, "H": 2, "items": [{"desc": "Profilé 40100 longueur", "qty": 1.0, "unit": 15.0, "formula": "=SUM(C8*D4)"}, {"desc": "Profilé 40100 Hauteur", "qty": 2.0, "unit": 15.0, "formula": "=SUM(C9*D5)"}, {"desc": "Profilé 40150 Longueur", "qty": 1.0, "unit": 18.0, "formula": "=+C10*D4"}, {"desc": "Profilé 40150 Hauteur", "qty": 2.0, "unit": 18.0, "formula": "=SUM(C11*D5)"}, {"desc": "Profilé 40121 Largeur", "qty": 1.0, "unit": 25.0, "formula": "=+C12*D4"}, {"desc": "Profilé 40104 Longueur", "qty": 1.0, "unit": 12.0, "formula": "2.35"}, {"desc": "Profilé 40104 Hauteur", "qty": 1.0, "unit": 12.0, "formula": "2.35"}, {"desc": "Profilé 40166 Longueur parclose", "qty": 4.0, "unit": 3.0, "formula": "=SUM(C15*D4)"}, {"desc": "Profilé 40166 Hauteur parclose", "qty": 4.0, "unit": 3.0, "formula": "=SUM(C16*D5)"}, {"desc": "Joint vitre 242 longueur", "qty": 4.0, "unit": 0.4, "formula": "=SUM(C17*D4)"}, {"desc": "Joint vitre 242 Hauteur", "qty": 8.0, "unit": 0.4, "formula": "=SUM(C18*D5)"}, {"desc": "40154", "qty": 1.0, "unit": 25.0, "formula": "=+C19*D4"}, {"desc": "R54", "qty": 0.0, "unit": 12.0, "formula": ""}, {"desc": "Joint batemon 247 longueur", "qty": 4.0, "unit": 0.4, "formula": "=SUM(C21*D4)"}, {"desc": "Joint batmon 247Hauteur", "qty": 4.0, "unit": 0.4, "formula": "4"}, {"desc": "Poingné à piquet", "qty": 1.0, "unit": 20.0, "formula": "1"}, {"desc": "Serrure", "qty": 1.0, "unit": 40.0, "formula": "1"}, {"desc": "Paumelle", "qty": 4.0, "unit": 3.5, "formula": "4"}, {"desc": "Coin parclose", "qty": 32.0, "unit": 0.1, "formula": "32"}, {"desc": "Equerre", "qty": 6.0, "unit": 1.0, "formula": "6"}, {"desc": "Vitre", "qty": 1.0, "unit": 40.0, "formula": "=SUM(D4*D5)"}]}, "PF  2V 2 Ch-F ": {"article": "Porte fenètre a 2 vantaux et 2 chassé fixe ", "L": 1, "H": 4, "items": [{"desc": "Profilé 40100 longueur", "qty": 2.0, "unit": 18.0, "formula": "=SUM(C8*D4)"}, {"desc": "Profilé 40100 Hauteur", "qty": 2.0, "unit": 18.0, "formula": "=SUM(C9*D5)"}, {"desc": "Profilé 40150 Longueur", "qty": 1.0, "unit": 18.0, "formula": "=SUM(C10*D4)"}, {"desc": "Profilé 40150 Hauteur", "qty": 4.0, "unit": 18.0, "formula": "=SUM(C11*D5)"}, {"desc": "Profilé 40121 lougueur", "qty": 1.0, "unit": 25.0, "formula": "=SUM(C12*D4)"}, {"desc": "Profilé 40166 Longueur parclose", "qty": 4.0, "unit": 3.0, "formula": "=SUM(C13*D4)"}, {"desc": "Profilé 40166 Hauteur parclose", "qty": 6.0, "unit": 3.0, "formula": "=SUM(C14*D5)"}, {"desc": "Profilé 40112 hauteur", "qty": 1.0, "unit": 8.0, "formula": "=+C15*D5"}, {"desc": "Profilé 40104 hauteur", "qty": 1.0, "unit": 12.0, "formula": "=+C16*D4"}, {"desc": "Profilé 40104 hauteur", "qty": 0.0, "unit": 12.0, "formula": "=+C17*D5"}, {"desc": "40154", "qty": 1.0, "unit": 25.0, "formula": "=+C18*D4"}, {"desc": "Joint vitre 242 longueur", "qty": 8.0, "unit": 0.4, "formula": "=SUM(C19*D4)"}, {"desc": "Joint vitre 242 Hauteur", "qty": 16.0, "unit": 0.4, "formula": "=SUM(C20*D5)"}, {"desc": "Joint batemon 247 longueur", "qty": 2.0, "unit": 0.4, "formula": "=SUM(C21*D4)"}, {"desc": "Joint batmon 247Hauteur", "qty": 6.0, "unit": 0.4, "formula": "=SUM(C22*D5)"}, {"desc": "Poingné à piquet", "qty": 1.0, "unit": 18.0, "formula": "1"}, {"desc": "Verrou semi fixe", "qty": 1.0, "unit": 5.0, "formula": "1"}, {"desc": "Serrure", "qty": 1.0, "unit": 45.0, "formula": "1"}, {"desc": "Paumelle", "qty": 8.0, "unit": 3.5, "formula": "8"}, {"desc": "Bouchon", "qty": 1.0, "unit": 0.4, "formula": "1"}, {"desc": "Coin parclose", "qty": 32.0, "unit": 0.15, "formula": "32"}, {"desc": "Equerre", "qty": 6.0, "unit": 1.0, "formula": "6"}, {"desc": "Vitre", "qty": 1.0, "unit": 20.0, "formula": "=SUM(D4*D5)"}]}, "Chassé fixe 1 Fenétre": {"article": "Fenètre a 2 vantaux et 2 chassés fixe  ", "L": 2, "H": 2.4, "items": [{"desc": "Profilé 40100 longueur", "qty": 3.0, "unit": 12.0, "formula": "=SUM(F12*G8)"}, {"desc": "Profilé 40100 Hauteur", "qty": 4.0, "unit": 12.0, "formula": "=SUM(F13*G9)"}, {"desc": "Profilé 40104 Largeur", "qty": 1.0, "unit": 12.0, "formula": "=+G8"}, {"desc": "Profilé 40104 Hauteur", "qty": 1.0, "unit": 12.0, "formula": "=+F15*G9"}, {"desc": "Profilé 40166 Longueur parclose", "qty": 6.0, "unit": 3.5, "formula": "=SUM(F16*G8)"}, {"desc": "Profilé 40166 Hauteur parclose", "qty": 4.0, "unit": 3.5, "formula": "=SUM(F17*G9)"}, {"desc": "Profilé 40112 hauteur", "qty": 0.0, "unit": 10.0, "formula": "=+F18*G9"}, {"desc": "Joint vitre 242 longueur", "qty": 12.0, "unit": 0.5, "formula": "=SUM(F19*G8)"}, {"desc": "Joint vitre 242 Hauteur", "qty": 8.0, "unit": 0.5, "formula": "=SUM(F20*G9)"}, {"desc": "Joint batemon 247 longueur", "qty": 4.0, "unit": 0.5, "formula": "=SUM(F21*G8)"}, {"desc": "Joint batmon 247Hauteur", "qty": 4.0, "unit": 0.5, "formula": "=SUM(F22*G9)"}, {"desc": "Verrou semi fixe", "qty": 0.0, "unit": 3.0, "formula": ""}, {"desc": "Crémone", "qty": 1.0, "unit": 20.0, "formula": "1"}, {"desc": "Paumelle", "qty": 2.0, "unit": 2.5, "formula": "2"}, {"desc": "Bouchon", "qty": 0.0, "unit": 1.0, "formula": ""}, {"desc": "Coin parclose", "qty": 16.0, "unit": 0.15, "formula": "16"}, {"desc": "Equerre", "qty": 8.0, "unit": 1.0, "formula": "8"}, {"desc": "Vitre", "qty": 1.0, "unit": 20.0, "formula": "=SUM(G8*G9)"}]}, "PF 1V Ch-F  (2)": {"article": "Porte fenètre a 1 vantau et chssé fixe ", "L": 1, "H": 2, "items": [{"desc": "Profilé 40100 longueur", "qty": 1.0, "unit": 12.0, "formula": "=SUM(C8*D4)"}, {"desc": "Profilé 40100 Hauteur", "qty": 2.0, "unit": 12.0, "formula": "=SUM(C9*D5)"}, {"desc": "Profilé 40150 Longueur", "qty": 1.0, "unit": 14.0, "formula": "1"}, {"desc": "Profilé 40150 Hauteur", "qty": 2.0, "unit": 14.0, "formula": "=+C11*D5"}, {"desc": "prfilé40148hauteur", "qty": 0.0, "unit": 12.0, "formula": "=+C12*D4"}, {"desc": "prfilé40148hauteur", "qty": 2.0, "unit": 12.0, "formula": "=+C13*D4"}, {"desc": "prfilé40148hauteur", "qty": 1.0, "unit": 12.0, "formula": "=+C14*D5"}, {"desc": "Profilé 40166 Longueur parclose", "qty": 6.0, "unit": 3.0, "formula": "=SUM(C15*D4)"}, {"desc": "Profilé 40166 Hauteur parclose", "qty": 4.0, "unit": 3.0, "formula": "=SUM(C16*D5)"}, {"desc": "40154", "qty": 1.0, "unit": 25.0, "formula": "=+C17*D4"}, {"desc": "Joint vitre 242 longueur", "qty": 12.0, "unit": 0.5, "formula": "=SUM(C18*D4)"}, {"desc": "Joint vitre 242 Hauteur", "qty": 8.0, "unit": 0.5, "formula": "=SUM(C19*D5)"}, {"desc": "Joint batemon 247 longueur", "qty": 2.0, "unit": 0.5, "formula": "=SUM(C20*D4)"}, {"desc": "Joint batmon 247Hauteur", "qty": 4.0, "unit": 0.5, "formula": "4"}, {"desc": "Poingné à piquet", "qty": 1.0, "unit": 12.0, "formula": "1"}, {"desc": "Serrure", "qty": 1.0, "unit": 39.0, "formula": "1"}, {"desc": "Paumelle", "qty": 4.0, "unit": 2.5, "formula": "4"}, {"desc": "Coin parclose", "qty": 24.0, "unit": 0.15, "formula": "24"}, {"desc": "Equerre", "qty": 8.0, "unit": 1.0, "formula": "8"}, {"desc": "Vitre", "qty": 1.0, "unit": 20.0, "formula": "=SUM(D4*D5)"}]}};
+
+const names=Object.keys(DATA);
+const priceKey = "djerbaAlustorePricesV2";
+const defaultPrices = {};
+for (const model of names) {
+  for (const it of DATA[model].items) {
+    const key = it.desc.trim().toLowerCase();
+    if (!(key in defaultPrices)) defaultPrices[key] = it.unit;
+  }
+}
+let prices = {};
+try { prices = JSON.parse(localStorage.getItem(priceKey) || "{}"); } catch(e) { prices = {}; }
+
+const sel=document.getElementById('model');
+names.forEach((n,i)=>{let o=document.createElement('option');o.value=n;o.textContent=DATA[n].article||n;sel.appendChild(o);});
+sel.value=names[0];
+
+function getPrice(item){
+  const k=item.desc.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(prices,k) ? Number(prices[k]) : Number(item.unit||0);
+}
+
+function calcConsumption(item,L,H){
+  const f=(item.formula||"").toLowerCase();
+  if(/c\d+\*d4/.test(f) || /d\d+\*e5/.test(f) || /e\d+\*d4/.test(f)) return item.qty*L;
+  if(/c\d+\*d5/.test(f) || /d\d+\*e6/.test(f) || /e\d+\*d5/.test(f)) return item.qty*H;
+  if(/f\d+\*g8/.test(f)) return item.qty*L;
+  if(/f\d+\*g9/.test(f)) return item.qty*H;
+  if(/^0$/.test(f.trim())) return 0;
+  if(item.unit===0) return 0;
+  const num=parseFloat(f.replace(",","."));
+  if(!isNaN(num) && /^[0-9.,]+$/.test((item.formula||"").trim())) return num;
+  const d=item.desc.toLowerCase();
+  if(d.includes('hauteur')) return item.qty*H;
+  if(d.includes('longueur')||d.includes('largeur')) return item.qty*L;
+  if(d.includes('vitre')) return L*H;
+  return item.qty;
+}
+
+function money(x){return new Intl.NumberFormat('fr-TN',{minimumFractionDigits:3,maximumFractionDigits:3}).format(x)+' DT';}
+
+function renderPrices(){
+  const all = new Map();
+  for (const model of names){
+    for (const it of DATA[model].items){
+      const k=it.desc.trim().toLowerCase();
+      if(!all.has(k)) all.set(k,{name:it.desc.trim(), unit:getPrice(it)});
+    }
+  }
+  const body=document.querySelector('#priceTable tbody');
+  body.innerHTML="";
+  for (const [k,v] of all){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${escapeHtml(v.name)}</td>
+      <td><input type="number" step="0.001" min="0" data-price-key="${escapeHtml(k)}" value="${Number(v.unit).toFixed(3)}"></td>
+      <td>${isProfile(v.name) ? 'DT / m' : 'DT / unité'}</td>`;
+    body.appendChild(tr);
+  }
+}
+function isProfile(name){
+  const s=name.toLowerCase();
+  return s.includes('profilé') || s.includes('profile') || /^r\d+/.test(s);
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function savePrices(){
+  document.querySelectorAll('#priceTable input[data-price-key]').forEach(inp=>{
+    const key=inp.dataset.priceKey;
+    const val=Math.max(0, Number(inp.value)||0);
+    prices[key]=val;
+  });
+  localStorage.setItem(priceKey, JSON.stringify(prices));
+  document.getElementById('saveMsg').textContent=" ✓ تم حفظ الأسعار";
+  calculate();
+}
+function resetPrices(){
+  prices={};
+  localStorage.removeItem(priceKey);
+  renderPrices();
+  calculate();
+  document.getElementById('saveMsg').textContent=" ✓ رجعت أسعار Excel";
+}
+
+function calculate(){
+ const model=DATA[sel.value], L=parseFloat(document.getElementById('L').value)||0, H=parseFloat(document.getElementById('H').value)||0;
+ const Q=Math.max(1,parseFloat(document.getElementById('Q').value)||1);
+ let subtotal=0, out='';
+ model.items.forEach(it=>{
+   const cons=calcConsumption(it,L,H)*Q;
+   const unit=getPrice(it);
+   const total=cons*unit;
+   subtotal+=total;
+   out+=`<tr><td>${escapeHtml(it.desc)}</td><td>${it.qty*Q}</td><td>${cons.toFixed(3)}</td><td>${unit.toFixed(3)} DT</td><td>${money(total)}</td></tr>`;
+ });
+ const margin=(parseFloat(document.getElementById('margin').value)||0)/100;
+ const sale=subtotal*(1+margin);
+ document.getElementById('rows').innerHTML=out;
+ document.getElementById('materials').textContent=money(subtotal);
+ document.getElementById('sale').textContent=money(sale);
+}
+sel.addEventListener('change',()=>{const d=DATA[sel.value];document.getElementById('L').value=d.L||1;document.getElementById('H').value=d.H||1;calculate();});
+['L','H','Q','margin'].forEach(id=>document.getElementById(id).addEventListener('input',calculate));
+renderPrices();
+calculate();
+
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>
